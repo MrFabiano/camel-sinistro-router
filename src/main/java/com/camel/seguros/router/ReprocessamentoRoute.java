@@ -3,6 +3,7 @@ package com.camel.seguros.router;
 import com.camel.seguros.processor.PendenteProcessor;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.LoggingLevel;
 
@@ -14,14 +15,22 @@ public class ReprocessamentoRoute extends RouteBuilder {
 
         // Tratamento global de exceções para DLQ
         onException(Exception.class)
-                .maximumRedeliveries(3)
-                .redeliveryDelay(2000)
-                .backOffMultiplier(2)
-                .retryAttemptedLogLevel(LoggingLevel.WARN)
-                .handled(true)
-                .log(LoggingLevel.ERROR, "Falha ao reprocessar pendente ${header.pendenteUuid}. Enviando para DLQ.")
-                // Removido ?brokers={{...}} - Camel resolve via camel.component.kafka.brokers
+                .process(exchange -> {
+                    Exception ex = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
+
+                    assert ex != null;
+                    exchange.getMessage().setHeader("erro", ex.getMessage());
+                })
+                .marshal().json()
                 .to("kafka:seguros-sinistros-dlq");
+//                .maximumRedeliveries(3)
+//                .redeliveryDelay(2000)
+//                .backOffMultiplier(2)
+//                .retryAttemptedLogLevel(LoggingLevel.WARN)
+//                .handled(true)
+//                .log(LoggingLevel.ERROR, "Falha ao reprocessar pendente ${header.pendenteUuid}. Enviando para DLQ.")
+                // Removido ?brokers={{...}} - Camel resolve via camel.component.kafka.brokers
+
 
         from("timer:reprocessar-pendentes?period=300000")
                 .routeId("reprocessamento-route")

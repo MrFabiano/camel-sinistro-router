@@ -50,7 +50,7 @@ public class ContingenciaRoute extends RouteBuilder {
                 .log(LoggingLevel.WARN, "Falha no Kafka. Gravando em contingência no banco...")
                 // Uso do #quarkus para referência de Bean
                 //.to("sql:INSERT INTO evento_pendente (uuid, payload, processado) VALUES (:#${header.requestId}, :#${body}, false)?dataSource=#quarkus")
-                .to("sql:INSERT INTO evento_pendente (uuid, payload, processado) VALUES (:#${header.requestId}, :#${body}, false)")
+                .to("sql:INSERT INTO eventopendente (uuid, payload, processado) VALUES (:#${header.requestId}, :#${body}, false)")
                 .setHeader("status", constant("pending"))
                 .end()
 
