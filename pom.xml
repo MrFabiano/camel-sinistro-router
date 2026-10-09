@@ -148,6 +148,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
         </dependency>
+        <!-- ========================================== -->
+        <!-- SMALLRYE HEALTH - HEALTH CHECKS            -->
+        <!-- ========================================== -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
 
     </dependencies>
 

@@ -23,8 +23,14 @@ public class ContingenciaRoute extends RouteBuilder {
 
         from("direct:processar-contingencia")
                 .routeId("contingencia-receive-route")
+                // LOG 1: Payload bruto chegando
+                .log(LoggingLevel.INFO, "=== RECEBEU CONTINGÊNCIA ===")
+                .log(LoggingLevel.DEBUG, "Raw Body: ${body}")
+                .log(LoggingLevel.INFO, "Headers: ${headers}")
                 .log(LoggingLevel.INFO, "Recebendo contingência do Sinistro API: ${body}")
                 .unmarshal().json(JsonLibrary.Jackson, SinistroPayload.class)
+                .log(LoggingLevel.DEBUG, "Payload objeto: ${body}")
+
                 .process(exchange -> {
                     SinistroPayload payload = exchange.getIn().getBody(SinistroPayload.class);
                     String requestId = (payload != null && payload.uuid() != null)
@@ -41,6 +47,7 @@ public class ContingenciaRoute extends RouteBuilder {
                 .setBody(simple("{\"error\":\"${header.error}\"}"))
                 .otherwise()
                 .doTry()
+                .log(LoggingLevel.INFO, "Publicando no Kafka topic: seguros-sinistros-topic")
                 .marshal().json(JsonLibrary.Jackson)
                 //.to("kafka:seguros-sinistros-topic?brokers={{kafka.bootstrap.servers}}")
                 .to("kafka:seguros-sinistros-topic")
@@ -51,6 +58,7 @@ public class ContingenciaRoute extends RouteBuilder {
                 // Uso do #quarkus para referência de Bean
                 //.to("sql:INSERT INTO evento_pendente (uuid, payload, processado) VALUES (:#${header.requestId}, :#${body}, false)?dataSource=#quarkus")
                 .to("sql:INSERT INTO eventopendente (uuid, payload, processado) VALUES (:#${header.requestId}, :#${body}, false)")
+                .log(LoggingLevel.INFO, " Gravado em eventopendente | requestId: ${header.requestId}")
                 .setHeader("status", constant("pending"))
                 .end()
 
