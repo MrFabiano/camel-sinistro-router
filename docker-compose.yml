@@ -1,10 +1,10 @@
 services:
-  camel-router:
+  seguros-camel-router:
     image: seguros/camel-router:1.0.0
     build:
       context: .
       dockerfile: src/main/docker/Dockerfile.jvm
-    container_name: camel-router
+    container_name: seguros-camel-router
     environment:
       QUARKUS_PROFILE: prod
       CAMEL_COMPONENT_KAFKA_BROKERS: seguros-kafka:29092
@@ -12,6 +12,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: seguros-kafka:29092
       QUARKUS_KAFKA_DEVSERVICES_ENABLED: "false"
       QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://seguros-db:5432/seguros_db
+      #APP_SIMULAR_FALHA: "true"
     ports:
       - "8081:8081"
     networks:
@@ -20,4 +21,4 @@ services:
 networks:
   seguros-network:
     external: true
-    name: seguros-network # ou code-with-quarkus-sinistro_seguros-network
+    name: seguros-network

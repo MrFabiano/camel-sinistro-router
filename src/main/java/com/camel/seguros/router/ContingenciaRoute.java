@@ -23,45 +23,41 @@ public class ContingenciaRoute extends RouteBuilder {
 
         from("direct:processar-contingencia")
                 .routeId("contingencia-receive-route")
-                // LOG 1: Payload bruto chegando
-                .log(LoggingLevel.INFO, "=== RECEBEU CONTINGÊNCIA ===")
+
+                .log(LoggingLevel.INFO, "=== RECEBEU CONTINGENCIA ===")
                 .log(LoggingLevel.DEBUG, "Raw Body: ${body}")
-                .log(LoggingLevel.INFO, "Headers: ${headers}")
-                .log(LoggingLevel.INFO, "Recebendo contingência do Sinistro API: ${body}")
+
                 .unmarshal().json(JsonLibrary.Jackson, SinistroPayload.class)
-                .log(LoggingLevel.DEBUG, "Payload objeto: ${body}")
+                .log(LoggingLevel.INFO, "Payload recebido: apoliceId=${body.apoliceId}, valor=${body.valorEstimado}")
 
                 .process(exchange -> {
                     SinistroPayload payload = exchange.getIn().getBody(SinistroPayload.class);
                     String requestId = (payload != null && payload.uuid() != null)
-                            ? payload.uuid().toString()
+                            ? String.valueOf(payload.uuid())
                             : UUID.randomUUID().toString();
 
                     exchange.getMessage().setHeader("requestId", requestId);
+                    exchange.getMessage().setHeader("status", "pending");
                 })
 
                 .choice()
                 .when(simple("${body.apoliceId} == null"))
-                .setHeader("error", constant("apoliceId é obrigatório"))
                 .setHeader("CamelHttpResponseCode", constant(400))
-                .setBody(simple("{\"error\":\"${header.error}\"}"))
+                .setBody(constant("{\"error\":\"apoliceId e obrigatorio\"}"))
                 .otherwise()
                 .doTry()
-                .log(LoggingLevel.INFO, "Publicando no Kafka topic: seguros-sinistros-topic")
+                .log(LoggingLevel.INFO, "Publicando no Kafka topic: seguros.sinistros.events")
                 .marshal().json(JsonLibrary.Jackson)
-                //.to("kafka:seguros-sinistros-topic?brokers={{kafka.bootstrap.servers}}")
-                .to("kafka:seguros-sinistros-topic")
-                .log(LoggingLevel.INFO, "Contingência publicada no Kafka com sucesso")
+                .to("kafka:seguros.sinistros.events")
+                .log(LoggingLevel.INFO, "Contingencia publicada no Kafka | requestId: ${header.requestId}")
                 .setHeader("status", constant("processed"))
                 .doCatch(Exception.class)
-                .log(LoggingLevel.WARN, "Falha no Kafka. Gravando em contingência no banco...")
-                // Uso do #quarkus para referência de Bean
-                //.to("sql:INSERT INTO evento_pendente (uuid, payload, processado) VALUES (:#${header.requestId}, :#${body}, false)?dataSource=#quarkus")
-                .to("sql:INSERT INTO eventopendente (uuid, payload, processado) VALUES (:#${header.requestId}, :#${body}, false)")
-                .log(LoggingLevel.INFO, " Gravado em eventopendente | requestId: ${header.requestId}")
-                .setHeader("status", constant("pending"))
+                .log(LoggingLevel.WARN, "Falha no Kafka. Gravando contingencia localmente...")
+                .to("sql:INSERT INTO eventopendente (payloadjson, datacriacao, processado) "
+                        + "VALUES (:#${body}, CURRENT_TIMESTAMP, false)")
+                .log(LoggingLevel.INFO, "Gravado em eventopendente | requestId: ${header.requestId}")
+                .setHeader("status", constant("pending_local"))
                 .end()
-
                 .setHeader("CamelHttpResponseCode", constant(200))
                 .setBody(simple("{\"status\":\"${header.status}\",\"requestId\":\"${header.requestId}\"}"))
                 .end()

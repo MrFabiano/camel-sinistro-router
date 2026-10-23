@@ -1,8 +1,5 @@
 package com.camel.seguros.router;
-
-import com.camel.seguros.processor.PendenteProcessor;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.LoggingLevel;
@@ -13,45 +10,39 @@ public class ReprocessamentoRoute extends RouteBuilder {
     @Override
     public void configure() throws Exception {
 
-        // Tratamento global de exceções para DLQ
+        // Escopo: vale para todas as rotas deste RouteBuilder
         onException(Exception.class)
                 .process(exchange -> {
                     Exception ex = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
-
-                    assert ex != null;
-                    exchange.getMessage().setHeader("erro", ex.getMessage());
+                    exchange.getMessage().setHeader("erro", ex != null ? ex.getMessage() : "desconhecido");
                 })
                 .marshal().json()
                 .to("kafka:seguros-sinistros-dlq");
-//                .maximumRedeliveries(3)
-//                .redeliveryDelay(2000)
-//                .backOffMultiplier(2)
-//                .retryAttemptedLogLevel(LoggingLevel.WARN)
-//                .handled(true)
-//                .log(LoggingLevel.ERROR, "Falha ao reprocessar pendente ${header.pendenteUuid}. Enviando para DLQ.")
-                // Removido ?brokers={{...}} - Camel resolve via camel.component.kafka.brokers
-
 
         from("timer:reprocessar-pendentes?period=300000")
                 .routeId("reprocessamento-route")
                 .autoStartup(false)
                 .log(LoggingLevel.INFO, "Iniciando busca de pendentes para reprocessamento")
 
-                .to("sql:SELECT uuid, payload FROM eventopendente WHERE processado = false LIMIT 100")
+                // SELECT usa id (nao uuid, que nao existe)
+                .to("sql:SELECT id, payloadjson FROM eventopendente WHERE processado = false LIMIT 100")
 
                 .split(body())
-                .setHeader("pendenteUuid", simple("${body[uuid]}"))
+                .setHeader("pendenteId", simple("${body[id]}"))
 
-                // Chama o Processor CDI
-                .process("pendenteProcessor")
+                .process(exchange -> {
+                    Object row = exchange.getIn().getBody();
+                    if (row instanceof java.util.Map<?, ?> map) {
+                        Object json = map.get("payloadjson");
+                        exchange.getIn().setBody(json != null ? json.toString() : null);
+                    }
+                })
 
-                // Removido ?brokers={{...}} - Camel resolve via camel.component.kafka.brokers
-                .to("kafka:seguros-sinistros-topic")
+                .to("kafka:seguros.sinistros.events")
+                .log(LoggingLevel.INFO, "Pendente ${header.pendenteId} reprocessado com sucesso")
 
-                // Parâmetro SQL corrigido para o Camel e CAST para UUID no PostgreSQL
-                .to("sql:UPDATE eventopendente SET processado = true WHERE uuid = CAST(:#pendenteUuid AS uuid)")
-
-                .log(LoggingLevel.INFO, "Registro ${header.pendenteUuid} reprocessado com sucesso")
+                // UPDATE usa id (nao uuid)
+                .to("sql:UPDATE eventopendente SET processado = true WHERE id = :#pendenteId")
                 .end();
     }
 }
