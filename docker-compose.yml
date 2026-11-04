@@ -6,6 +6,8 @@ services:
       dockerfile: src/main/docker/Dockerfile.jvm
     container_name: seguros-camel-router
     environment:
+      TZ: America/Sao_Paulo
+      JAVA_OPTS_APPEND: "-Duser.timezone=America/Sao_Paulo"
       QUARKUS_PROFILE: prod
       CAMEL_COMPONENT_KAFKA_BROKERS: kafka:29092
     ports:
