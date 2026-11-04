@@ -1,0 +1,37 @@
+openapi: 3.0.3
+info:
+  title: Camel Router - Sinistro
+  version: 1.0.0
+paths:
+  /api/v1/contingencia:
+    post:
+      summary: Publica o evento de contingência no Kafka
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SinistroPayload'
+      responses:
+        '200':
+          description: "Processado: status 'processed' ou 'failed'"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContingenciaResponse'
+        '400':
+          description: apoliceId é obrigatório
+components:
+  schemas:
+    SinistroPayload:
+      type: object
+      required: [apoliceId]
+      properties:
+        uuid: { type: string, example: 5d3abf04-ab4b-4592-a9e2-7e5e3f82347e }
+        apoliceId: { type: string, example: AP-24248 }
+        valorEstimado: { type: number, example: 1500.09 }
+    ContingenciaResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [processed, failed] }
+        requestId: { type: string }
